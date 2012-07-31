@@ -35,12 +35,19 @@ class EmailTokenRequestComponent extends Component {
  */
 	public $email = 'email';
 /**
- * Field name for login username.
+ * Field emailToken for email_token.
  *
  * @access public
  * @var string
  */
 	public $emailToken = 'email_token';
+/**
+ * Field password for login.
+ *
+ * @access public
+ * @var string
+ */
+	public $password = 'password';
 /**
  * Field name for login password.
  *
@@ -72,7 +79,7 @@ class EmailTokenRequestComponent extends Component {
 		'1 month'		=> 2592000,
 		'2 months'	=> 5184000,
 	);
-	protected $secondsExpires = '1 weak';
+	public $secondsExpires = '1 weak';
 /**
  * Should we debug?
  *
@@ -106,6 +113,19 @@ class EmailTokenRequestComponent extends Component {
 			$this->modelName = $this->_controller->modelClass;
 		}
 		$this->model = ClassRegistry::init($this->modelName);
+	}
+/**
+	 * .
+	 *
+	 * @access public
+	 * @param Controller $controller
+	 * @return void
+	 */
+	public function startup(Controller $controller) {
+		// Backwards support
+		if (isset($this->settings)) {
+			$this->_set($this->settings);
+		}
 	}
 /**
  * Debug the current auth and cookies.
@@ -163,6 +183,15 @@ class EmailTokenRequestComponent extends Component {
 		// Set the data to identify with
 		return sha1($email . $salt);
 	}//end function
+	function deleteToken($id){
+		$data = array(
+			$this->modelName =>array(
+				$this->id => $id,
+				$this->emailToken => null,
+				$this->emailTokenExpires => null,
+			));
+		$this->model->save($data, false);
+	}
 /*
  * Returns true if a record with particular token exists.
  * 
@@ -190,6 +219,39 @@ class EmailTokenRequestComponent extends Component {
 		$conditions = array($this->modelName . '.' . $this->emailToken => $token);
 		return $this->model->field($this->email, $conditions);
 	}//end function
+/**
+ * readByToken
+ */
+	public function readByToken($token = null) {
+		$this->validationErrors = array();
+		$this->model->recursive = -1;
+		if(!preg_match('/^[0-9a-f]{40}$/i', $token))
+			return false;
+		$fields = array(	$this->modelName . '.' . $this->model->primaryKey,
+											$this->modelName . '.' . $this->email,
+											$this->modelName . '.' . $this->emailToken,
+											$this->modelName . '.' . $this->emailTokenExpires
+											);
+		return $this->model->find('first', array(
+				'conditions' => array($this->modelName . '.' . $this->emailToken => $token),
+				'fields' => $fields
+			));
+	}
+/**
+ * readByToken
+ */
+	public function updatePassword($tokenData=null, $password) {
+		$id = $tokenData[$this->modelName][$this->model->primaryKey];
+		$fields = array(
+				$this->modelName . '.' . $this->emailToken => null,
+				$this->modelName . '.' . $this->emailTokenExpires => null,
+				$this->modelName . '.' . $this->password => "'".$this->Auth->password($password)."'"
+			);
+			$conditions = array(
+				$this->modelName . '.' . $this->model->primaryKey . ' =' => $id
+			);
+		return $this->model->updateAll($fields, $conditions);
+	}
 /**
  * Returns true if a record with particular e-mail exists.
  *
